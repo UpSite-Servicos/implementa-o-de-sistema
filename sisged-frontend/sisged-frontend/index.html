@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - UpSite (SISGED, MVP estático)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="demo-banner">
+  ⚠️ <strong>MVP de demonstração</strong> — este é o front-end estático do SISGED (HTML/CSS/JS), sem backend real. Login e dados são simulados no navegador.
+</div>
+
+<div class="login-wrapper" style="min-height: calc(100vh - 34px);">
+  <div class="login-card">
+    <div class="d-flex justify-content-center align-items-center gap-3 mb-3">
+      <img src="img/senai_cor.png" alt="SENAI" height="34">
+      <img src="img/sesi_cor.png" alt="SESI" height="34">
+    </div>
+    <h1>UpSite</h1>
+    <p class="subtitulo">Sistema de Gestão Educacional Dinâmico — MVP front-end</p>
+
+    <div id="erro-login" class="alert alert-danger py-2 d-none"></div>
+
+    <form id="form-login" class="precisa-validacao" novalidate>
+      <div class="mb-3">
+        <label class="form-label">E-mail</label>
+        <input type="email" id="email" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Senha</label>
+        <input type="password" id="senha" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Entrar</button>
+    </form>
+
+    <hr>
+    <p class="small text-muted mb-1">Contas de demonstração (senha: <strong>123456</strong>):</p>
+    <ul class="small text-muted mb-0 ps-3">
+      <li>coordenacao@sisged.com.br</li>
+      <li>carlos.andrade@sisged.com.br (instrutor)</li>
+      <li>ana.santos@aluno.sisged.com.br (aluno)</li>
+    </ul>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  document.getElementById("form-login").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    const email = document.getElementById("email").value.trim();
+    const senha = document.getElementById("senha").value;
+    const erroBox = document.getElementById("erro-login");
+
+    if (fazerLogin(email, senha)) {
+      window.location.href = "dashboard.html";
+    } else {
+      erroBox.textContent = "E-mail ou senha inválidos.";
+      erroBox.classList.remove("d-none");
+    }
+  });
+</script>
+</body>
+</html>
