@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aulas - UpSite (SISGED, MVP estático)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="conteudo-pagina" class="d-none">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h2 class="page-title mb-0" id="titulo-pagina">Aulas</h2>
+    <button class="btn btn-primary d-none" id="btn-nova-aula" data-bs-toggle="modal" data-bs-target="#modalAula" onclick="abrirNovo()">+ Nova Aula</button>
+  </div>
+  <div id="msg-sucesso" class="alert alert-success d-none"></div>
+  <div class="form-card">
+    <div class="table-responsive">
+      <table class="table table-sisged table-hover align-middle">
+        <thead><tr><th>Data</th><th>Horário</th><th>Turma</th><th>Sala</th><th>Instrutor</th><th>Status</th><th class="text-end d-none" id="th-acoes">Ações</th></tr></thead>
+        <tbody id="tabela-aulas"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalAula" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="form-aula">
+        <div class="modal-header"><h5 class="modal-title" id="tituloModal">Nova Aula</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="aula-id">
+          <div class="mb-3"><label class="form-label">Turma *</label><select id="aula-turma" class="form-select" required></select></div>
+          <div class="row">
+            <div class="col-6 mb-3"><label class="form-label">Sala *</label><select id="aula-sala" class="form-select" required></select></div>
+            <div class="col-6 mb-3"><label class="form-label">Instrutor *</label><select id="aula-instrutor" class="form-select" required></select></div>
+          </div>
+          <div class="row">
+            <div class="col-4 mb-3"><label class="form-label">Data *</label><input type="date" id="aula-data" class="form-control" required></div>
+            <div class="col-4 mb-3"><label class="form-label">Hora início *</label><input type="time" id="aula-hora-inicio" class="form-control" required></div>
+            <div class="col-4 mb-3"><label class="form-label">Hora fim *</label><input type="time" id="aula-hora-fim" class="form-control" required></div>
+          </div>
+          <div id="erro-aula" class="alert alert-danger py-2 d-none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/layout.js"></script>
+<script>
+  exigirLogin();
+  const usuario = usuarioLogado();
+  const ehCoordenacao = usuario.perfil === "coordenacao";
+
+  if (ehCoordenacao) {
+    document.getElementById("btn-nova-aula").classList.remove("d-none");
+    document.getElementById("th-acoes").classList.remove("d-none");
+  } else {
+    document.getElementById("titulo-pagina").textContent = "Minhas Aulas";
+  }
+
+  function nomeDe(lista, id) { return lista.find((x) => x.id === id)?.nome || "-"; }
+  function formatarData(iso) { return iso.split("-").reverse().join("/"); }
+
+  function aulasVisiveis() {
+    if (ehCoordenacao) return DB.aulas;
+    if (usuario.perfil === "instrutor") return DB.aulas.filter((a) => a.instrutorId === usuario.referenciaId);
+    const minhasTurmas = DB.alunos.find((a) => a.id === usuario.referenciaId)?.turmas || [];
+    return DB.aulas.filter((a) => minhasTurmas.includes(a.turmaId));
+  }
+
+  function renderizar() {
+    const lista = [...aulasVisiveis()].sort((a, b) => (a.data + a.horaInicio).localeCompare(b.data + b.horaInicio));
+    document.getElementById("tabela-aulas").innerHTML = lista.length === 0
+      ? `<tr><td colspan="7" class="text-center text-muted py-4">Nenhuma aula encontrada.</td></tr>`
+      : lista.map((a) => `
+        <tr>
+          <td>${formatarData(a.data)}</td><td>${a.horaInicio} - ${a.horaFim}</td>
+          <td>${nomeDe(DB.turmas, a.turmaId)}</td><td>${nomeDe(DB.salas, a.salaId)}</td><td>${nomeDe(DB.instrutores, a.instrutorId)}</td>
+          <td><span class="badge badge-status-${a.status}">${a.status}</span></td>
+          <td class="text-end ${ehCoordenacao ? "" : "d-none"}">
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalAula" onclick="abrirEdicao(${a.id})">Editar</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="excluir(${a.id})">Excluir</button>
+          </td>
+        </tr>`).join("");
+  }
+
+  function montarSelects(aula) {
+    document.getElementById("aula-turma").innerHTML = `<option value="">Selecione...</option>` +
+      DB.turmas.map((t) => `<option value="${t.id}" ${aula && aula.turmaId === t.id ? "selected" : ""}>${t.nome}</option>`).join("");
+    document.getElementById("aula-sala").innerHTML = `<option value="">Selecione...</option>` +
+      DB.salas.map((s) => `<option value="${s.id}" ${aula && aula.salaId === s.id ? "selected" : ""}>${s.nome} (${s.capacidade} lugares)</option>`).join("");
+    document.getElementById("aula-instrutor").innerHTML = `<option value="">Selecione...</option>` +
+      DB.instrutores.map((i) => `<option value="${i.id}" ${aula && aula.instrutorId === i.id ? "selected" : ""}>${i.nome}</option>`).join("");
+  }
+
+  function abrirNovo() {
+    document.getElementById("form-aula").reset();
+    document.getElementById("aula-id").value = "";
+    document.getElementById("tituloModal").textContent = "Nova Aula";
+    document.getElementById("erro-aula").classList.add("d-none");
+    montarSelects(null);
+  }
+
+  function abrirEdicao(id) {
+    const a = DB.aulas.find((x) => x.id === id);
+    document.getElementById("aula-id").value = a.id;
+    montarSelects(a);
+    document.getElementById("aula-data").value = a.data;
+    document.getElementById("aula-hora-inicio").value = a.horaInicio;
+    document.getElementById("aula-hora-fim").value = a.horaFim;
+    document.getElementById("tituloModal").textContent = "Editar Aula";
+    document.getElementById("erro-aula").classList.add("d-none");
+  }
+
+  function excluir(id) {
+    if (!confirm("Excluir esta aula? (ação simulada, apenas neste navegador)")) return;
+    DB.aulas = DB.aulas.filter((a) => a.id !== id);
+    persistir();
+    renderizar();
+  }
+
+  /**
+   * PARTE CRÍTICA (reimplementação em JS da mesma regra do back-end PHP):
+   * verifica se já existe aula na mesma sala OU com o mesmo instrutor,
+   * na mesma data, com sobreposição de horário (início_A < fim_B E fim_A > início_B).
+   * Isto é só uma simulação no front-end — numa aplicação real essa checagem
+   * tem que ser refeita no servidor (ver includes/functions.php do SISGED PHP),
+   * pois o front-end sozinho pode ser manipulado pelo usuário.
+   */
+  function verificarConflito(salaId, instrutorId, data, horaInicio, horaFim, ignorarId) {
+    const conflito = DB.aulas.find((a) =>
+      a.id !== ignorarId &&
+      a.data === data &&
+      a.status !== "Cancelada" &&
+      (a.salaId === salaId || a.instrutorId === instrutorId) &&
+      a.horaInicio < horaFim && a.horaFim > horaInicio
+    );
+    if (!conflito) return null;
+    if (conflito.salaId === salaId) {
+      return `Conflito: a sala "${nomeDe(DB.salas, salaId)}" já tem uma aula agendada nesse horário (${conflito.horaInicio} - ${conflito.horaFim}).`;
+    }
+    return `Conflito: o(a) instrutor(a) "${nomeDe(DB.instrutores, instrutorId)}" já tem uma aula agendada nesse horário (${conflito.horaInicio} - ${conflito.horaFim}).`;
+  }
+
+  document.getElementById("form-aula").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    const id = document.getElementById("aula-id").value;
+    const turmaId = Number(document.getElementById("aula-turma").value);
+    const salaId = Number(document.getElementById("aula-sala").value);
+    const instrutorId = Number(document.getElementById("aula-instrutor").value);
+    const data = document.getElementById("aula-data").value;
+    const horaInicio = document.getElementById("aula-hora-inicio").value;
+    const horaFim = document.getElementById("aula-hora-fim").value;
+    const erroBox = document.getElementById("erro-aula");
+
+    if (!turmaId || !salaId || !instrutorId || !data || !horaInicio || !horaFim) {
+      erroBox.textContent = "Todos os campos são obrigatórios."; erroBox.classList.remove("d-none"); return;
+    }
+    if (horaFim <= horaInicio) {
+      erroBox.textContent = "O horário de término deve ser depois do horário de início."; erroBox.classList.remove("d-none"); return;
+    }
+    const conflito = verificarConflito(salaId, instrutorId, data, horaInicio, horaFim, id ? Number(id) : null);
+    if (conflito) { erroBox.textContent = conflito; erroBox.classList.remove("d-none"); return; }
+
+    if (id) {
+      const a = DB.aulas.find((x) => x.id === Number(id));
+      Object.assign(a, { turmaId, salaId, instrutorId, data, horaInicio, horaFim });
+    } else {
+      const novoId = Math.max(0, ...DB.aulas.map((a) => a.id)) + 1;
+      DB.aulas.push({ id: novoId, turmaId, salaId, instrutorId, data, horaInicio, horaFim, status: "Agendada", observacoes: "" });
+    }
+    persistir();
+    bootstrap.Modal.getInstance(document.getElementById("modalAula")).hide();
+    const msg = document.getElementById("msg-sucesso");
+    msg.textContent = id ? "Aula atualizada com sucesso." : "Aula cadastrada com sucesso.";
+    msg.classList.remove("d-none");
+    renderizar();
+  });
+
+  renderizar();
+  montarLayout("aulas.html");
+</script>
+</body>
+</html>

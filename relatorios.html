@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatórios - UpSite (SISGED, MVP estático)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="conteudo-pagina" class="d-none">
+  <h2 class="page-title">Relatórios de Aulas</h2>
+
+  <div class="form-card mb-3 no-print">
+    <div class="row g-3">
+      <div class="col-md-3"><label class="form-label small mb-1">Data início</label><input type="date" id="f-data-inicio" class="form-control"></div>
+      <div class="col-md-3"><label class="form-label small mb-1">Data fim</label><input type="date" id="f-data-fim" class="form-control"></div>
+      <div class="col-md-3"><label class="form-label small mb-1">Sala</label><select id="f-sala" class="form-select"><option value="">Todas</option></select></div>
+      <div class="col-md-3"><label class="form-label small mb-1">Turma</label><select id="f-turma" class="form-select"><option value="">Todas</option></select></div>
+      <div class="col-md-3"><button class="btn btn-primary w-100" onclick="gerarRelatorio()">Gerar relatório</button></div>
+      <div class="col-md-3"><button class="btn btn-outline-secondary w-100" onclick="window.print()">🖨️ Imprimir / PDF</button></div>
+    </div>
+  </div>
+
+  <div class="form-card" id="resultado" style="display:none">
+    <div class="d-flex justify-content-between flex-wrap mb-3">
+      <h5>Resultado: <span id="total-aulas"></span> aula(s)</h5>
+      <h5>Carga horária total: <span id="total-horas"></span> h</h5>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sisged table-hover align-middle">
+        <thead><tr><th>Data</th><th>Horário</th><th>Turma</th><th>Disciplina</th><th>Sala</th><th>Instrutor</th><th>Status</th></tr></thead>
+        <tbody id="tabela-relatorio"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="alert alert-info" id="aviso-inicial">Escolha os filtros acima e clique em "Gerar relatório".</div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/layout.js"></script>
+<script>
+  exigirLogin();
+  exigirPerfil(["coordenacao", "instrutor"]);
+  const usuario = usuarioLogado();
+
+  document.getElementById("f-sala").innerHTML += DB.salas.map((s) => `<option value="${s.id}">${s.nome}</option>`).join("");
+  document.getElementById("f-turma").innerHTML += DB.turmas.map((t) => `<option value="${t.id}">${t.nome}</option>`).join("");
+
+  function nomeDe(lista, id) { return lista.find((x) => x.id === id)?.nome || "-"; }
+  function formatarData(iso) { return iso.split("-").reverse().join("/"); }
+
+  function gerarRelatorio() {
+    const di = document.getElementById("f-data-inicio").value;
+    const df = document.getElementById("f-data-fim").value;
+    const salaId = document.getElementById("f-sala").value;
+    const turmaId = document.getElementById("f-turma").value;
+
+    let lista = DB.aulas;
+    if (usuario.perfil === "instrutor") lista = lista.filter((a) => a.instrutorId === usuario.referenciaId);
+    if (di) lista = lista.filter((a) => a.data >= di);
+    if (df) lista = lista.filter((a) => a.data <= df);
+    if (salaId) lista = lista.filter((a) => a.salaId === Number(salaId));
+    if (turmaId) lista = lista.filter((a) => a.turmaId === Number(turmaId));
+    lista = [...lista].sort((a, b) => (a.data + a.horaInicio).localeCompare(b.data + b.horaInicio));
+
+    let totalMin = 0;
+    lista.forEach((a) => {
+      const [h1, m1] = a.horaInicio.split(":").map(Number);
+      const [h2, m2] = a.horaFim.split(":").map(Number);
+      totalMin += (h2 * 60 + m2) - (h1 * 60 + m1);
+    });
+
+    document.getElementById("aviso-inicial").style.display = "none";
+    document.getElementById("resultado").style.display = "block";
+    document.getElementById("total-aulas").textContent = lista.length;
+    document.getElementById("total-horas").textContent = (totalMin / 60).toFixed(1).replace(".", ",");
+    document.getElementById("tabela-relatorio").innerHTML = lista.length === 0
+      ? `<tr><td colspan="7" class="text-center text-muted py-4">Nenhuma aula encontrada para os filtros selecionados.</td></tr>`
+      : lista.map((a) => `
+        <tr>
+          <td>${formatarData(a.data)}</td><td>${a.horaInicio} - ${a.horaFim}</td>
+          <td>${nomeDe(DB.turmas, a.turmaId)}</td><td>${DB.turmas.find((t) => t.id === a.turmaId)?.disciplina || ""}</td>
+          <td>${nomeDe(DB.salas, a.salaId)}</td><td>${nomeDe(DB.instrutores, a.instrutorId)}</td>
+          <td><span class="badge badge-status-${a.status}">${a.status}</span></td>
+        </tr>`).join("");
+  }
+
+  montarLayout("relatorios.html");
+</script>
+</body>
+</html>
